@@ -43,8 +43,8 @@ HOOD_STATUS_ENTITY_DESCRIPTION = ToyotaBinaryEntityDescription(
     icon="mdi:car-door",
     entity_category=EntityCategory.DIAGNOSTIC,
     device_class=BinarySensorDeviceClass.DOOR,
-    value_fn=lambda vehicle: (
-        not getattr(getattr(vehicle.lock_status, "hood", None), "closed", None)
+    value_fn=lambda vehicle: not getattr(
+        getattr(vehicle.lock_status, "hood", None), "closed", None
     ),
     attributes_fn=lambda vehicle: {
         LAST_UPDATED: getattr(vehicle.lock_status, "last_updated", None),
@@ -57,12 +57,10 @@ FRONT_DRIVER_DOOR_LOCK_STATUS_ENTITY_DESCRIPTION = ToyotaBinaryEntityDescription
     icon="mdi:car-door-lock",
     entity_category=EntityCategory.DIAGNOSTIC,
     device_class=BinarySensorDeviceClass.LOCK,
-    value_fn=lambda vehicle: (
-        not getattr(
-            getattr(getattr(vehicle.lock_status, "doors", None), "driver_seat", None),
-            "locked",
-            None,
-        )
+    value_fn=lambda vehicle: not getattr(
+        getattr(getattr(vehicle.lock_status, "doors", None), "driver_seat", None),
+        "locked",
+        None,
     ),
     attributes_fn=lambda vehicle: {
         LAST_UPDATED: getattr(vehicle.lock_status, "last_updated", None),
@@ -75,12 +73,10 @@ FRONT_DRIVER_DOOR_OPEN_STATUS_ENTITY_DESCRIPTION = ToyotaBinaryEntityDescription
     icon="mdi:car-door",
     entity_category=EntityCategory.DIAGNOSTIC,
     device_class=BinarySensorDeviceClass.DOOR,
-    value_fn=lambda vehicle: (
-        not getattr(
-            getattr(getattr(vehicle.lock_status, "doors", None), "driver_seat", None),
-            "closed",
-            None,
-        )
+    value_fn=lambda vehicle: not getattr(
+        getattr(getattr(vehicle.lock_status, "doors", None), "driver_seat", None),
+        "closed",
+        None,
     ),
     attributes_fn=lambda vehicle: {
         LAST_UPDATED: getattr(vehicle.lock_status, "last_updated", None),
@@ -93,12 +89,10 @@ FRONT_DRIVER_DOOR_WINDOW_STATUS_ENTITY_DESCRIPTION = ToyotaBinaryEntityDescripti
     icon="mdi:car-door",
     entity_category=EntityCategory.DIAGNOSTIC,
     device_class=BinarySensorDeviceClass.WINDOW,
-    value_fn=lambda vehicle: (
-        not getattr(
-            getattr(getattr(vehicle.lock_status, "windows", None), "driver_seat", None),
-            "closed",
-            None,
-        )
+    value_fn=lambda vehicle: not getattr(
+        getattr(getattr(vehicle.lock_status, "windows", None), "driver_seat", None),
+        "closed",
+        None,
     ),
     attributes_fn=lambda vehicle: {
         LAST_UPDATED: getattr(vehicle.lock_status, "last_updated", None),
@@ -111,14 +105,10 @@ FRONT_PASSENGER_DOOR_LOCK_STATUS_ENTITY_DESCRIPTION = ToyotaBinaryEntityDescript
     icon="mdi:car-door-lock",
     entity_category=EntityCategory.DIAGNOSTIC,
     device_class=BinarySensorDeviceClass.LOCK,
-    value_fn=lambda vehicle: (
-        not getattr(
-            getattr(
-                getattr(vehicle.lock_status, "doors", None), "passenger_seat", None
-            ),
-            "locked",
-            None,
-        )
+    value_fn=lambda vehicle: not getattr(
+        getattr(getattr(vehicle.lock_status, "doors", None), "passenger_seat", None),
+        "locked",
+        None,
     ),
     attributes_fn=lambda vehicle: {
         LAST_UPDATED: getattr(vehicle.lock_status, "last_updated", None),
@@ -131,14 +121,10 @@ FRONT_PASSENGER_DOOR_OPEN_STATUS_ENTITY_DESCRIPTION = ToyotaBinaryEntityDescript
     icon="mdi:car-door",
     entity_category=EntityCategory.DIAGNOSTIC,
     device_class=BinarySensorDeviceClass.DOOR,
-    value_fn=lambda vehicle: (
-        not getattr(
-            getattr(
-                getattr(vehicle.lock_status, "doors", None), "passenger_seat", None
-            ),
-            "closed",
-            None,
-        )
+    value_fn=lambda vehicle: not getattr(
+        getattr(getattr(vehicle.lock_status, "doors", None), "passenger_seat", None),
+        "closed",
+        None,
     ),
     attributes_fn=lambda vehicle: {
         LAST_UPDATED: getattr(vehicle.lock_status, "last_updated", None),
@@ -151,14 +137,10 @@ FRONT_PASSENGER_DOOR_WINDOW_STATUS_ENTITY_DESCRIPTION = ToyotaBinaryEntityDescri
     icon="mdi:car-door",
     entity_category=EntityCategory.DIAGNOSTIC,
     device_class=BinarySensorDeviceClass.WINDOW,
-    value_fn=lambda vehicle: (
-        not getattr(
-            getattr(
-                getattr(vehicle.lock_status, "windows", None), "passenger_seat", None
-            ),
-            "closed",
-            None,
-        )
+    value_fn=lambda vehicle: not getattr(
+        getattr(getattr(vehicle.lock_status, "windows", None), "passenger_seat", None),
+        "closed",
+        None,
     ),
     attributes_fn=lambda vehicle: {
         LAST_UPDATED: getattr(vehicle.lock_status, "last_updated", None),
@@ -171,14 +153,10 @@ REAR_DRIVER_DOOR_LOCK_STATUS_ENTITY_DESCRIPTION = ToyotaBinaryEntityDescription(
     icon="mdi:car-door-lock",
     entity_category=EntityCategory.DIAGNOSTIC,
     device_class=BinarySensorDeviceClass.LOCK,
-    value_fn=lambda vehicle: (
-        not getattr(
-            getattr(
-                getattr(vehicle.lock_status, "doors", None), "driver_rear_seat", None
-            ),
-            "locked",
-            None,
-        )
+    value_fn=lambda vehicle: not getattr(
+        getattr(getattr(vehicle.lock_status, "doors", None), "driver_rear_seat", None),
+        "locked",
+        None,
     ),
     attributes_fn=lambda vehicle: {
         LAST_UPDATED: getattr(vehicle.lock_status, "last_updated", None),
@@ -191,14 +169,10 @@ REAR_DRIVER_DOOR_OPEN_STATUS_ENTITY_DESCRIPTION = ToyotaBinaryEntityDescription(
     icon="mdi:car-door",
     entity_category=EntityCategory.DIAGNOSTIC,
     device_class=BinarySensorDeviceClass.DOOR,
-    value_fn=lambda vehicle: (
-        not getattr(
-            getattr(
-                getattr(vehicle.lock_status, "doors", None), "driver_rear_seat", None
-            ),
-            "closed",
-            None,
-        )
+    value_fn=lambda vehicle: not getattr(
+        getattr(getattr(vehicle.lock_status, "doors", None), "driver_rear_seat", None),
+        "closed",
+        None,
     ),
     attributes_fn=lambda vehicle: {
         LAST_UPDATED: getattr(vehicle.lock_status, "last_updated", None),
@@ -211,14 +185,12 @@ REAR_DRIVER_DOOR_WINDOW_STATUS_ENTITY_DESCRIPTION = ToyotaBinaryEntityDescriptio
     icon="mdi:car-door",
     entity_category=EntityCategory.DIAGNOSTIC,
     device_class=BinarySensorDeviceClass.WINDOW,
-    value_fn=lambda vehicle: (
-        not getattr(
-            getattr(
-                getattr(vehicle.lock_status, "windows", None), "driver_rear_seat", None
-            ),
-            "closed",
-            None,
-        )
+    value_fn=lambda vehicle: not getattr(
+        getattr(
+            getattr(vehicle.lock_status, "windows", None), "driver_rear_seat", None
+        ),
+        "closed",
+        None,
     ),
     attributes_fn=lambda vehicle: {
         LAST_UPDATED: getattr(vehicle.lock_status, "last_updated", None),
@@ -231,14 +203,12 @@ REAR_PASSENGER_DOOR_LOCK_STATUS_ENTITY_DESCRIPTION = ToyotaBinaryEntityDescripti
     icon="mdi:car-door-lock",
     entity_category=EntityCategory.DIAGNOSTIC,
     device_class=BinarySensorDeviceClass.LOCK,
-    value_fn=lambda vehicle: (
-        not getattr(
-            getattr(
-                getattr(vehicle.lock_status, "doors", None), "passenger_rear_seat", None
-            ),
-            "locked",
-            None,
-        )
+    value_fn=lambda vehicle: not getattr(
+        getattr(
+            getattr(vehicle.lock_status, "doors", None), "passenger_rear_seat", None
+        ),
+        "locked",
+        None,
     ),
     attributes_fn=lambda vehicle: {
         LAST_UPDATED: getattr(vehicle.lock_status, "last_updated", None),
@@ -251,14 +221,12 @@ REAR_PASSENGER_DOOR_OPEN_STATUS_ENTITY_DESCRIPTION = ToyotaBinaryEntityDescripti
     icon="mdi:car-door",
     entity_category=EntityCategory.DIAGNOSTIC,
     device_class=BinarySensorDeviceClass.DOOR,
-    value_fn=lambda vehicle: (
-        not getattr(
-            getattr(
-                getattr(vehicle.lock_status, "doors", None), "passenger_rear_seat", None
-            ),
-            "closed",
-            None,
-        )
+    value_fn=lambda vehicle: not getattr(
+        getattr(
+            getattr(vehicle.lock_status, "doors", None), "passenger_rear_seat", None
+        ),
+        "closed",
+        None,
     ),
     attributes_fn=lambda vehicle: {
         LAST_UPDATED: getattr(vehicle.lock_status, "last_updated", None),
@@ -271,16 +239,12 @@ REAR_PASSENGER_DOOR_WINDOW_STATUS_ENTITY_DESCRIPTION = ToyotaBinaryEntityDescrip
     icon="mdi:car-door",
     entity_category=EntityCategory.DIAGNOSTIC,
     device_class=BinarySensorDeviceClass.WINDOW,
-    value_fn=lambda vehicle: (
-        not getattr(
-            getattr(
-                getattr(vehicle.lock_status, "windows", None),
-                "passenger_rear_seat",
-                None,
-            ),
-            "closed",
-            None,
-        )
+    value_fn=lambda vehicle: not getattr(
+        getattr(
+            getattr(vehicle.lock_status, "windows", None), "passenger_rear_seat", None
+        ),
+        "closed",
+        None,
     ),
     attributes_fn=lambda vehicle: {
         LAST_UPDATED: getattr(vehicle.lock_status, "last_updated", None),
@@ -293,12 +257,10 @@ TRUNK_DOOR_LOCK_ENTITY_DESCRIPTION = ToyotaBinaryEntityDescription(
     icon="mdi:car-door-lock",
     entity_category=EntityCategory.DIAGNOSTIC,
     device_class=BinarySensorDeviceClass.LOCK,
-    value_fn=lambda vehicle: (
-        not getattr(
-            getattr(getattr(vehicle.lock_status, "doors", None), "trunk", None),
-            "locked",
-            None,
-        )
+    value_fn=lambda vehicle: not getattr(
+        getattr(getattr(vehicle.lock_status, "doors", None), "trunk", None),
+        "locked",
+        None,
     ),
     attributes_fn=lambda vehicle: {
         LAST_UPDATED: getattr(vehicle.lock_status, "last_updated", None),
@@ -311,12 +273,10 @@ TRUNK_DOOR_OPEN_ENTITY_DESCRIPTION = ToyotaBinaryEntityDescription(
     icon="mdi:car-door",
     entity_category=EntityCategory.DIAGNOSTIC,
     device_class=BinarySensorDeviceClass.WINDOW,
-    value_fn=lambda vehicle: (
-        not getattr(
-            getattr(getattr(vehicle.lock_status, "doors", None), "trunk", None),
-            "closed",
-            None,
-        )
+    value_fn=lambda vehicle: not getattr(
+        getattr(getattr(vehicle.lock_status, "doors", None), "trunk", None),
+        "closed",
+        None,
     ),
     attributes_fn=lambda vehicle: {
         LAST_UPDATED: getattr(vehicle.lock_status, "last_updated", None),

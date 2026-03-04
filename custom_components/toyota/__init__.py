@@ -19,7 +19,14 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from loguru import logger
 from pydantic import ValidationError
 
-from .const import CONF_BRAND, CONF_METRIC_VALUES, DOMAIN, PLATFORMS, STARTUP_MESSAGE
+from .const import (
+    CONF_BRAND,
+    CONF_FETCH_HISTORY,
+    CONF_METRIC_VALUES,
+    DOMAIN,
+    PLATFORMS,
+    STARTUP_MESSAGE,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -86,6 +93,78 @@ def _run_pytoyoda_sync(coro: Coroutine) -> Any:  # noqa : ANN401
         loop.close()
 
 
+def _is_vehicle_charging(vehicle: Any) -> bool:  # noqa: ANN401
+    """Best-effort: determine whether vehicle is charging from EV status."""
+    status_obj = getattr(vehicle, "electric_status", None) or getattr(vehicle, "ev_status", None)
+    if status_obj is None:
+        return False
+
+    raw_bool = getattr(status_obj, "is_charging", None)
+    if isinstance(raw_bool, bool):
+        return raw_bool
+
+    raw = getattr(status_obj, "charging_status", None) or getattr(status_obj, "chargingStatus", None)
+    if raw is None:
+        return False
+    raw_str = str(raw).strip().lower()
+    return raw_str in {"charging", "in_progress", "inprogress", "start", "started"}
+
+
+async def _refresh_vehicle_minimal(hass: HomeAssistant, vehicle: Any) -> None:  # noqa: ANN401
+    """Refresh only essential vehicle endpoints (avoids trips/notifications/service history)."""
+    vin = vehicle.vin
+    if not vin:
+        return
+
+    info = vehicle._vehicle_info  # noqa: SLF001
+    ext = getattr(info, "extended_capabilities", None)
+    feat = getattr(info, "features", None)
+
+    # Build list of essential endpoint calls
+    calls: list[tuple[str, Coroutine]] = []
+
+    # Health status (always fetch if available)
+    calls.append(("health_status", vehicle._api.get_vehicle_health_status(vin=vin)))  # noqa: SLF001
+
+    # Telemetry (odometer, fuel, battery dashboard data)
+    if getattr(ext, "telemetry_capable", False):
+        calls.append(("telemetry", vehicle._api.get_telemetry(vin=vin)))  # noqa: SLF001
+
+    # Electric status (EV battery, charging state)
+    if getattr(ext, "econnect_vehicle_status_capable", False):
+        calls.append(("electric_status", vehicle._api.get_vehicle_electric_status(vin=vin)))  # noqa: SLF001
+
+    # Remote status (doors, windows, locks)
+    if getattr(ext, "vehicle_status", False):
+        calls.append(("status", vehicle._api.get_remote_status(vin=vin)))  # noqa: SLF001
+
+    # Location (last parked)
+    if getattr(ext, "last_parked_capable", False) or getattr(feat, "last_parked", False):
+        calls.append(("location", vehicle._api.get_location(vin=vin)))  # noqa: SLF001
+
+    # Climate (settings and status) - check both traditional and eConnect capabilities
+    climate_traditional = getattr(ext, "climate_capable", False)
+    climate_econnect = getattr(ext, "econnect_climate_capable", False)
+    climate_feature = getattr(feat, "climate_start_engine", False)
+    
+    if climate_traditional or climate_econnect or climate_feature:
+        calls.append(("climate_settings", vehicle._api.get_climate_settings(vin=vin)))  # noqa: SLF001
+        calls.append(("climate_status", vehicle._api.get_climate_status(vin=vin)))  # noqa: SLF001
+
+    # Execute all calls in parallel
+    results = await asyncio.gather(
+        *[hass.async_add_executor_job(_run_pytoyoda_sync, call) for _, call in calls],
+        return_exceptions=True,
+    )
+
+    # Store results in vehicle._endpoint_data
+    for (name, _), result in zip(calls, results, strict=False):
+        if not isinstance(result, Exception):
+            vehicle._endpoint_data[name] = result  # noqa: SLF001
+        else:
+            _LOGGER.debug("Failed to refresh %s: %s", name, result)
+
+
 async def async_setup_entry(  # pylint: disable=too-many-statements # noqa: PLR0915, C901
     hass: HomeAssistant, entry: ConfigEntry
 ) -> bool:
@@ -97,6 +176,7 @@ async def async_setup_entry(  # pylint: disable=too-many-statements # noqa: PLR0
     email = entry.data[CONF_EMAIL]
     password = entry.data[CONF_PASSWORD]
     metric_values = entry.data[CONF_METRIC_VALUES]
+    fetch_history = entry.options.get(CONF_FETCH_HISTORY, False)
     brand = entry.data.get(
         CONF_BRAND, "toyota"
     )  # Get brand from config, default to toyota
@@ -146,15 +226,15 @@ async def async_setup_entry(  # pylint: disable=too-many-statements # noqa: PLR0
             if vehicles:
                 for vehicle in vehicles:
                     if vehicle:
-                        await hass.async_add_executor_job(
-                            _run_pytoyoda_sync, vehicle.update()
-                        )
+                        # Refresh only essential endpoints (skip trips/notifications/service history)
+                        await _refresh_vehicle_minimal(hass, vehicle)
+                        
                         vehicle_data = VehicleData(
                             data=vehicle, statistics=None, metric_values=metric_values
                         )
 
-                        if vehicle.vin is not None:
-                            # Use parallel request to get car statistics.
+                        # Only fetch statistics if history is enabled
+                        if fetch_history and vehicle.vin is not None:
                             driving_statistics = await asyncio.gather(
                                 hass.async_add_executor_job(
                                     _run_pytoyoda_sync,
@@ -180,10 +260,17 @@ async def async_setup_entry(  # pylint: disable=too-many-statements # noqa: PLR0
                                 month=driving_statistics[2],
                                 year=driving_statistics[3],
                             )
+                        else:
+                            vehicle_data["statistics"] = StatisticsData(
+                                day=None,
+                                week=None,
+                                month=None,
+                                year=None,
+                            )
 
                         vehicle_informations.append(vehicle_data)
 
-                _LOGGER.debug(vehicle_informations)
+                # _LOGGER.debug(vehicle_informations)  # Disabled - can cause errors if climate data is None
                 return vehicle_informations
 
         except ToyotaLoginError:
@@ -214,7 +301,7 @@ async def async_setup_entry(  # pylint: disable=too-many-statements # noqa: PLR0
         _LOGGER,
         name=DOMAIN,
         update_method=async_get_vehicle_data,
-        update_interval=timedelta(seconds=360),
+        update_interval=timedelta(seconds=1200),
     )
 
     await coordinator.async_config_entry_first_refresh()

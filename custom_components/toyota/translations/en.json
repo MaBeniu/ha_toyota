@@ -21,7 +21,8 @@
     "step": {
       "init": {
         "data": {
-          "use_liters": "Use liters (L/100 miles) instead of MPG. Only applicable if you car reports data in miles (Imperial unit system)."
+          "use_liters": "Use liters (L/100 miles) instead of MPG. Only applicable if you car reports data in miles (Imperial unit system).",
+          "fetch_history": "Enable extra/history endpoints (trips, notifications history, service history). Turn OFF to reduce API calls."
         }
       }
     }
@@ -55,6 +56,12 @@
       },
       "battery_level": {
         "name": "Battery level"
+      },
+      "battery_charging_state": {
+        "name": "Battery charging state"
+      },
+      "battery_energy": {
+        "name": "Battery energy (kWh)"
       },
       "battery_range_ac": {
         "name": "Battery range with AC"
@@ -144,6 +151,9 @@
       },
       "taillights": {
         "name": "Taillights"
+      },
+      "away_charge": {
+        "name": "Charged Not Home"
       }
     }
   }
