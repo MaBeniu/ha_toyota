@@ -18,7 +18,7 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.core import callback
 
-from .const import CONF_BRAND_MAPPING, DOMAIN
+from .const import CONF_BRAND_MAPPING, CONF_FETCH_HISTORY, DOMAIN
 from .entity import ToyotaBaseEntity
 from .utils import (
     format_statistics_attributes,
@@ -689,6 +689,7 @@ async def async_setup_entry(
     coordinator: DataUpdateCoordinator[list[VehicleData]] = hass.data[DOMAIN][
         entry.entry_id
     ]
+    fetch_history = entry.options.get(CONF_FETCH_HISTORY, False)
 
     sensors: list[ToyotaSensor | ToyotaStatisticsSensor | ToyotaAwayChargeSensor] = []
     for index, vehicle_data in enumerate(coordinator.data):
@@ -720,19 +721,19 @@ async def async_setup_entry(
                 parking_location_entity_id=parking_location_entity_id,
             )
         )
-        # Commented out statistics sensors
-        # sensors.extend(
-        #     ToyotaStatisticsSensor(
-        #         coordinator=coordinator,
-        #         entry_id=entry.entry_id,
-        #         vehicle_index=index,
-        #         description=config["description"],
-        #         native_unit=config["native_unit"],
-        #         suggested_unit=config["suggested_unit"],
-        #     )
-        #     for config in sensor_configs
-        #     if config["description"].key.startswith("current_")
-        #     and config["capability_check"](vehicle)
-        # )
+        if fetch_history:
+            sensors.extend(
+                ToyotaStatisticsSensor(
+                    coordinator=coordinator,
+                    entry_id=entry.entry_id,
+                    vehicle_index=index,
+                    description=config["description"],
+                    native_unit=config["native_unit"],
+                    suggested_unit=config["suggested_unit"],
+                )
+                for config in sensor_configs
+                if config["description"].key.startswith("current_")
+                and config["capability_check"](vehicle)
+            )
 
     async_add_devices(sensors)

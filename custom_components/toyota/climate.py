@@ -63,10 +63,18 @@ async def async_setup_entry(
 def _vehicle_has_climate_capability(vehicle: Vehicle) -> bool:
     """Check if vehicle supports climate control."""
     try:
-        return getattr(
-            getattr(vehicle._vehicle_info, "features", False),  # noqa : SLF001
-            "climate_start_engine",
-            False,
+        info = getattr(vehicle, "_vehicle_info", None)  # noqa : SLF001
+        if info is None:
+            return False
+
+        features = getattr(info, "features", None)
+        ext = getattr(info, "extended_capabilities", None)
+
+        # Keep compatibility with older and newer API capability models.
+        return bool(
+            getattr(features, "climate_start_engine", False)
+            or getattr(ext, "climate_capable", False)
+            or getattr(ext, "econnect_climate_capable", False)
         )
     except Exception:  # pylint: disable=W0718 # noqa : BLE001
         return False
