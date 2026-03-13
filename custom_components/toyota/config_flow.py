@@ -13,7 +13,13 @@ from homeassistant.helpers import selector
 from pytoyoda.client import MyT
 from pytoyoda.exceptions import ToyotaInvalidUsernameError, ToyotaLoginError
 
-from .const import CONF_BRAND, CONF_FETCH_HISTORY, CONF_METRIC_VALUES, DOMAIN
+from .const import (
+    CONF_BRAND,
+    CONF_FETCH_HISTORY,
+    CONF_METRIC_VALUES,
+    CONF_EV_USABLE_BATTERY_KWH,
+    DOMAIN,
+)
 
 class ToyotaOptionsFlowHandler(config_entries.OptionsFlow):
     """Handle Toyota options."""
@@ -34,6 +40,18 @@ class ToyotaOptionsFlowHandler(config_entries.OptionsFlow):
                         CONF_FETCH_HISTORY,
                         default=self._config_entry.options.get(CONF_FETCH_HISTORY, False),
                     ): selector.BooleanSelector(),
+                    vol.Optional(
+                        CONF_EV_USABLE_BATTERY_KWH,
+                        default=self._config_entry.options.get(CONF_EV_USABLE_BATTERY_KWH, None),
+                    ): selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=0,
+                            max=500,
+                            mode="box",
+                            step=0.01,
+                            unit_of_measurement="kWh",
+                        )
+                    ),
                 }
             ),
         )

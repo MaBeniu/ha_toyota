@@ -19,6 +19,7 @@ CONF_BRAND = "Brand"
 CONF_BRAND_MAPPING = {"T": "Toyota", "L": "Lexus"}
 CONF_METRIC_VALUES = "use_metric_values"
 CONF_FETCH_HISTORY = "fetch_history"
+CONF_EV_USABLE_BATTERY_KWH = "ev_usable_battery_kwh"
 
 # DEFAULTS
 DEFAULT_LOCALE = "en-gb"

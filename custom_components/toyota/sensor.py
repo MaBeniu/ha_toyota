@@ -13,7 +13,7 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.core import callback
 from homeassistant.helpers import entity_registry as er
-from .const import CONF_BRAND_MAPPING, CONF_FETCH_HISTORY, DOMAIN
+from .const import CONF_BRAND_MAPPING, CONF_FETCH_HISTORY, CONF_EV_USABLE_BATTERY_KWH, DOMAIN
 from .entity import ToyotaBaseEntity
 from .utils import (
     charging_status_key,
@@ -420,7 +420,7 @@ STATISTICS_ENTITY_DESCRIPTIONS_YEARLY = ToyotaStatisticsSensorEntityDescription(
 )
 
 
-def create_sensor_configurations(metric_values: bool, fetch_history: bool) -> list[dict[str, Any]]:  # noqa : FBT001
+def create_sensor_configurations(metric_values: bool, fetch_history: bool, usable_kwh: float | None) -> list[dict[str, Any]]:  # noqa : FBT001
     """Create a list of sensor configurations based on vehicle capabilities.
 
     Args:
@@ -534,17 +534,40 @@ def create_sensor_configurations(metric_values: bool, fetch_history: bool) -> li
             "native_unit": "min",
             "suggested_unit": "min",
         },
-        {
-            "description": BATTERY_ENERGY_ENTITY_DESCRIPTION,
-            "capability_check": lambda v: (
-                get_vehicle_capability(v, "econnect_vehicle_status_capable")
-                or v.type == "electric"
-            ),
-            "native_unit": UnitOfEnergy.KILO_WATT_HOUR,
-            "suggested_unit": UnitOfEnergy.KILO_WATT_HOUR,
-        },
+        # BATTERY_ENERGY handled below only when usable_kwh is configured
         # Charged-not-home accumulator is implemented as ToyotaAwayChargeSensor
     ]
+
+    # Add battery energy sensor only if usable_kwh provided and > 0
+    if usable_kwh and usable_kwh > 0:
+        battery_energy_desc = ToyotaSensorEntityDescription(
+            key="battery_energy",
+            translation_key="battery_energy",
+            icon="mdi:battery",
+            device_class=None,
+            state_class=SensorStateClass.MEASUREMENT,
+            suggested_display_precision=1,
+            value_fn=(lambda vehicle, usable_kwh=usable_kwh: (
+                None
+                if (percent := _get_battery_percent(vehicle)) is None
+                else round(percent * usable_kwh / 100.0, 1)
+            )),
+            attributes_fn=(lambda vehicle, usable_kwh=usable_kwh: {
+                "usable_capacity_kwh": usable_kwh,
+                "battery_percent": _get_battery_percent(vehicle),
+            }),
+        )
+        sensor_configs.append(
+            {
+                "description": battery_energy_desc,
+                "capability_check": lambda v: (
+                    get_vehicle_capability(v, "econnect_vehicle_status_capable")
+                    or v.type == "electric"
+                ),
+                "native_unit": UnitOfEnergy.KILO_WATT_HOUR,
+                "suggested_unit": UnitOfEnergy.KILO_WATT_HOUR,
+            }
+        )
 
     # Add statistics sensors only if fetch_history is True
     if fetch_history:
@@ -785,7 +808,13 @@ async def async_setup_entry(
         metric_values = vehicle_data["metric_values"]
 
         fetch_history = entry.options.get(CONF_FETCH_HISTORY, False)
-        sensor_configs = create_sensor_configurations(metric_values, fetch_history)
+        usable_kwh = entry.options.get(CONF_EV_USABLE_BATTERY_KWH, 0)
+        try:
+            usable_kwh = float(usable_kwh) if usable_kwh is not None else 0
+        except (TypeError, ValueError):
+            usable_kwh = 0
+
+        sensor_configs = create_sensor_configurations(metric_values, fetch_history, usable_kwh)
 
         # Best-effort entity registry migration: map older unique_id formats
         # to the desired unique_id so HA will re-use existing entities instead
@@ -823,15 +852,17 @@ async def async_setup_entry(
         )
 
         # Add the away charge sensor for each vehicle (charged_not_home accumulator)
-        parking_location_entity_id = f"device_tracker.{vehicle.vin}_parking_location"
-        sensors.append(
-            ToyotaAwayChargeSensor(
-                coordinator=coordinator,
-                entry_id=entry.entry_id,
-                vehicle_index=index,
-                parking_location_entity_id=parking_location_entity_id,
+        # Only create if usable battery capacity is configured (>0)
+        if usable_kwh and usable_kwh > 0:
+            parking_location_entity_id = f"device_tracker.{vehicle.vin}_parking_location"
+            sensors.append(
+                ToyotaAwayChargeSensor(
+                    coordinator=coordinator,
+                    entry_id=entry.entry_id,
+                    vehicle_index=index,
+                    parking_location_entity_id=parking_location_entity_id,
+                )
             )
-        )
 
         # Add statistics sensors
         sensors.extend(
