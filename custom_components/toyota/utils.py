@@ -1,9 +1,6 @@
 """Utilities for Toyota integration."""
-
 # pylint: disable=W0212, W0511
-
 from __future__ import annotations
-
 from typing import TYPE_CHECKING
 
 from .const import CONF_BRAND_MAPPING
@@ -14,6 +11,11 @@ if TYPE_CHECKING:
     from pytoyoda.models.endpoints.vehicle_guid import VehicleGuidModel
     from pytoyoda.models.summary import Summary
 
+def charging_status_key(status: str) -> str:
+    """Convert a charging status to a valid key."""
+    if status == "chargeComplete":
+        return "charge_complete"
+    return status
 
 def td_to_hoursminutes(td: timedelta | None) -> str | None:
     """Convert a timedelta to hours and minutes string."""

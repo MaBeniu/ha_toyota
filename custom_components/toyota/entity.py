@@ -12,6 +12,7 @@ from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
     DataUpdateCoordinator,
 )
+from homeassistant.helpers.restore_state import RestoreEntity
 
 from .const import CONF_BRAND_MAPPING, DOMAIN
 
@@ -21,7 +22,7 @@ if TYPE_CHECKING:
     from . import StatisticsData, VehicleData
 
 
-class ToyotaBaseEntity(CoordinatorEntity):
+class ToyotaBaseEntity(CoordinatorEntity, RestoreEntity):
     """Defines a base Toyota entity."""
 
     _attr_has_entity_name = True

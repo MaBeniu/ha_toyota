@@ -15,10 +15,10 @@ DOMAIN = "toyota"
 NAME = "Toyota Connected Services"
 ISSUES_URL = "https://github.com/pytoyoda/ha_toyota/issues"
 
-# CONF
 CONF_BRAND = "Brand"
 CONF_BRAND_MAPPING = {"T": "Toyota", "L": "Lexus"}
 CONF_METRIC_VALUES = "use_metric_values"
+CONF_FETCH_HISTORY = "fetch_history"
 
 # DEFAULTS
 DEFAULT_LOCALE = "en-gb"

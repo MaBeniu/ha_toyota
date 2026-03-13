@@ -1,20 +1,43 @@
 """Config flow for Toyota Connected Services integration."""
 
-# pylint: disable=W0212, W0511
-
 import logging
 from collections.abc import Mapping
 from typing import Any
 
 import voluptuous as vol
 from homeassistant import config_entries
+from homeassistant.core import callback
 from homeassistant.const import CONF_EMAIL, CONF_PASSWORD
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import selector
 from pytoyoda.client import MyT
 from pytoyoda.exceptions import ToyotaInvalidUsernameError, ToyotaLoginError
 
-from .const import CONF_BRAND, CONF_METRIC_VALUES, DOMAIN
+from .const import CONF_BRAND, CONF_FETCH_HISTORY, CONF_METRIC_VALUES, DOMAIN
+
+class ToyotaOptionsFlowHandler(config_entries.OptionsFlow):
+    """Handle Toyota options."""
+
+    def __init__(self, config_entry):
+        # OptionsFlow has a read-only `config_entry` property; store locally
+        self._config_entry = config_entry
+
+    async def async_step_init(self, user_input=None):
+        if user_input is not None:
+            return self.async_create_entry(title="", data=user_input)
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_FETCH_HISTORY,
+                        default=self._config_entry.options.get(CONF_FETCH_HISTORY, False),
+                    ): selector.BooleanSelector(),
+                }
+            ),
+        )
+
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -32,6 +55,11 @@ BRAND_API_MAP = {
 
 class ToyotaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # pylint: disable=W0223
     """Handle a config flow for Toyota Connected Services."""
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry):
+        return ToyotaOptionsFlowHandler(config_entry)
 
     VERSION = 1
 
