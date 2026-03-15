@@ -16,6 +16,7 @@ from pytoyoda.exceptions import ToyotaInvalidUsernameError, ToyotaLoginError
 from .const import (
     CONF_BRAND,
     CONF_FETCH_HISTORY,
+    CONF_SCAN_INTERVAL,
     CONF_METRIC_VALUES,
     CONF_EV_USABLE_BATTERY_KWH,
     DOMAIN,
@@ -40,6 +41,18 @@ class ToyotaOptionsFlowHandler(config_entries.OptionsFlow):
                         CONF_FETCH_HISTORY,
                         default=self._config_entry.options.get(CONF_FETCH_HISTORY, False),
                     ): selector.BooleanSelector(),
+                        vol.Optional(
+                            CONF_SCAN_INTERVAL,
+                            default=self._config_entry.options.get(CONF_SCAN_INTERVAL, 1200),
+                        ): selector.NumberSelector(
+                            selector.NumberSelectorConfig(
+                                min=60,
+                                max=86400,
+                                mode="box",
+                                step=60,
+                                unit_of_measurement="seconds",
+                            )
+                        ),
                     vol.Optional(
                         CONF_EV_USABLE_BATTERY_KWH,
                         default=self._config_entry.options.get(CONF_EV_USABLE_BATTERY_KWH, None),

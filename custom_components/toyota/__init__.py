@@ -19,7 +19,16 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from loguru import logger
 from pydantic import ValidationError
 
-from .const import CONF_BRAND, CONF_FETCH_HISTORY, CONF_METRIC_VALUES, DOMAIN, PLATFORMS, STARTUP_MESSAGE
+from .const import (
+    CONF_BRAND,
+    CONF_FETCH_HISTORY,
+    CONF_METRIC_VALUES,
+    CONF_SCAN_INTERVAL,
+    DEFAULT_SCAN_INTERVAL,
+    DOMAIN,
+    PLATFORMS,
+    STARTUP_MESSAGE,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -256,12 +265,14 @@ async def async_setup_entry(  # pylint: disable=too-many-statements # noqa: PLR0
             raise UpdateFailed(msg) from ex
         return None
 
+    # Use configured scan interval (seconds) from entry options, fallback to default
+    scan_interval_seconds = entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
     coordinator = DataUpdateCoordinator(
         hass,
         _LOGGER,
         name=DOMAIN,
         update_method=async_get_vehicle_data,
-        update_interval=timedelta(seconds=1200),
+        update_interval=timedelta(seconds=scan_interval_seconds),
     )
 
     await coordinator.async_config_entry_first_refresh()

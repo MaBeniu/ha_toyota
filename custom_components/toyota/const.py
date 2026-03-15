@@ -20,6 +20,10 @@ CONF_BRAND_MAPPING = {"T": "Toyota", "L": "Lexus"}
 CONF_METRIC_VALUES = "use_metric_values"
 CONF_FETCH_HISTORY = "fetch_history"
 CONF_EV_USABLE_BATTERY_KWH = "ev_usable_battery_kwh"
+CONF_SCAN_INTERVAL = "scan_interval"
+
+# DEFAULTS
+DEFAULT_SCAN_INTERVAL = 1200
 
 # DEFAULTS
 DEFAULT_LOCALE = "en-gb"
