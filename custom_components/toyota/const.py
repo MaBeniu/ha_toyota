@@ -20,6 +20,7 @@ ISSUES_URL = "https://github.com/pytoyoda/ha_toyota/issues"
 CONF_BRAND = "Brand"
 CONF_BRAND_MAPPING = {"T": "Toyota", "L": "Lexus"}
 CONF_METRIC_VALUES = "use_metric_values"
+CONF_EV_USABLE_BATTERY_KWH = "ev_usable_battery_kwh"
 # When True, per-vehicle cached data is returned on transient coordinator
 # failures (Toyota 429, connection timeouts, read timeouts) instead of
 # flipping entities to unavailable. Off by default for backward compatibility.

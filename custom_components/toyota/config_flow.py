@@ -18,6 +18,7 @@ from .const import (
     CONF_AUTO_DISABLED_STATUS_REFRESH,
     CONF_BRAND,
     CONF_ENABLE_STATUS_REFRESH,
+    CONF_EV_USABLE_BATTERY_KWH,
     CONF_FAILED_WAKE_THRESHOLD,
     CONF_IDLE_WAKE_HOURS,
     CONF_MAX_CACHE_AGE_MINUTES,
@@ -262,6 +263,18 @@ class ToyotaOptionsFlow(config_entries.OptionsFlow):
                     ): selector.NumberSelector(
                         selector.NumberSelectorConfig(
                             min=1, max=5, step=1, mode=selector.NumberSelectorMode.BOX
+                        )
+                    ),
+                    vol.Optional(
+                        CONF_EV_USABLE_BATTERY_KWH,
+                        default=opts.get(CONF_EV_USABLE_BATTERY_KWH),
+                    ): selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=0,
+                            max=500,
+                            step=0.01,
+                            mode=selector.NumberSelectorMode.BOX,
+                            unit_of_measurement="kWh",
                         )
                     ),
                 }

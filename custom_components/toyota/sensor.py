@@ -13,10 +13,12 @@ from homeassistant.components.sensor import (
     SensorEntityDescription,
     SensorStateClass,
 )
-from homeassistant.const import PERCENTAGE, UnitOfLength
+from homeassistant.const import PERCENTAGE, UnitOfEnergy, UnitOfLength
+from homeassistant.core import callback
 from homeassistant.helpers.entity import EntityCategory
+from homeassistant.helpers.restore_state import RestoreEntity
 
-from .const import DOMAIN
+from .const import CONF_BRAND_MAPPING, CONF_EV_USABLE_BATTERY_KWH, DOMAIN
 from .entity import ToyotaBaseEntity
 from .utils import (
     charging_status_key,
@@ -65,6 +67,94 @@ def get_vehicle_capability(
         )
     except Exception:  # pylint: disable=W0718 # noqa : BLE001
         return default
+
+
+def _coerce_float(value: Any) -> float | None:
+    """Convert supported numeric values to float."""
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _get_nested_attr(obj: Any, *names: str) -> Any:  # noqa: ANN401
+    """Safely resolve nested attributes from dict-like or object-like values."""
+    current = obj
+    for name in names:
+        if current is None:
+            return None
+        if isinstance(current, dict):
+            current = current.get(name)
+        else:
+            current = getattr(current, name, None)
+    return current
+
+
+def _get_battery_percent(vehicle: Vehicle) -> float | None:
+    """Best-effort battery percent from dashboard first, then EV status fallback."""
+    if vehicle.dashboard is not None:
+        dashboard_percent = _coerce_float(getattr(vehicle.dashboard, "battery_level", None))
+        if dashboard_percent is not None:
+            return dashboard_percent
+
+    status_obj = getattr(vehicle, "electric_status", None) or getattr(
+        vehicle, "ev_status", None
+    )
+    for field in (
+        "battery_level",
+        "battery_percentage",
+        "batteryPercent",
+        "battery_percent",
+    ):
+        percent = _coerce_float(_get_nested_attr(status_obj, field))
+        if percent is not None:
+            return percent
+    return None
+
+
+def _get_charging_state(vehicle: Vehicle) -> str | None:
+    """Best-effort charging state for EV-specific diagnostic sensor."""
+    if vehicle.dashboard is not None and getattr(vehicle.dashboard, "charging_status", None):
+        return charging_status_key(vehicle.dashboard.charging_status)
+
+    status_obj = getattr(vehicle, "electric_status", None) or getattr(
+        vehicle, "ev_status", None
+    )
+    for field in (
+        "is_charging",
+        "charging",
+        "charging_status",
+        "chargingStatus",
+        "charging_state",
+        "chargingState",
+        "charge_status",
+        "chargeStatus",
+    ):
+        raw = _get_nested_attr(status_obj, field)
+        if isinstance(raw, bool):
+            return "charging" if raw else "not_charging"
+        if raw is not None:
+            raw_str = str(raw).strip().lower()
+            if raw_str in {"chargecomplete", "charge_complete"}:
+                return "charge_complete"
+            if raw_str in {"charging", "in_progress", "inprogress", "start", "started"}:
+                return "charging"
+            if raw_str in {"not_charging", "notcharging", "stopped", "stop", "idle"}:
+                return "none"
+            if raw_str in {"plugged", "plugged_in", "connected"}:
+                return "plugged"
+            return raw_str
+    return None
+
+
+def _get_battery_energy_kwh(vehicle: Vehicle, usable_kwh: float) -> float | None:
+    """Estimate battery energy from percentage and configured usable capacity."""
+    percent = _get_battery_percent(vehicle)
+    if percent is None:
+        return None
+    return round(percent * usable_kwh / 100.0, 2)
 
 
 class ToyotaSensorEntityDescription(SensorEntityDescription, frozen_or_thawed=True):
@@ -236,6 +326,21 @@ CHARGING_STATUS_ENTITY_DESCRIPTION = ToyotaSensorEntityDescription(
         }
     ),
 )
+BATTERY_CHARGING_STATE_ENTITY_DESCRIPTION = ToyotaSensorEntityDescription(
+    key="battery_charging_state",
+    translation_key="battery_charging_state",
+    icon="mdi:battery-charging",
+    device_class=None,
+    state_class=None,
+    value_fn=_get_charging_state,
+    attributes_fn=lambda vehicle: {"battery_percent": _get_battery_percent(vehicle)},
+)
+
+CHARGED_NOT_HOME_ENTITY_DESCRIPTION = SensorEntityDescription(
+    key="charged_not_home",
+    translation_key="charged_not_home",
+    icon="mdi:ev-station",
+)
 REMAINING_CHARGE_TIME_ENTITY_DESCRIPTION = ToyotaSensorEntityDescription(
     key="remaining_charge_time",
     translation_key="remaining_charge_time",
@@ -294,7 +399,10 @@ STATISTICS_ENTITY_DESCRIPTIONS_YEARLY = ToyotaStatisticsSensorEntityDescription(
 )
 
 
-def create_sensor_configurations(metric_values: bool) -> list[dict[str, Any]]:  # noqa : FBT001
+def create_sensor_configurations(
+    metric_values: bool,
+    usable_kwh: float | None = None,
+) -> list[dict[str, Any]]:  # noqa : FBT001
     """Create a list of sensor configurations based on vehicle capabilities.
 
     Args:
@@ -309,7 +417,7 @@ def create_sensor_configurations(metric_values: bool) -> list[dict[str, Any]]:  
     def get_length_unit(metric: bool) -> str:  # noqa : FBT001
         return UnitOfLength.KILOMETERS if metric else UnitOfLength.MILES
 
-    return [
+    sensor_configs = [
         {
             "description": VIN_ENTITY_DESCRIPTION,
             "capability_check": lambda v: True,  # noqa : ARG005
@@ -389,6 +497,15 @@ def create_sensor_configurations(metric_values: bool) -> list[dict[str, Any]]:  
             "suggested_unit": None,
         },
         {
+            "description": BATTERY_CHARGING_STATE_ENTITY_DESCRIPTION,
+            "capability_check": lambda v: (
+                get_vehicle_capability(v, "econnect_vehicle_status_capable")
+                or v.type == "electric"
+            ),
+            "native_unit": None,
+            "suggested_unit": None,
+        },
+        {
             "description": REMAINING_CHARGE_TIME_ENTITY_DESCRIPTION,
             "capability_check": lambda v: (
                 get_vehicle_capability(v, "econnect_vehicle_status_capable")
@@ -422,6 +539,36 @@ def create_sensor_configurations(metric_values: bool) -> list[dict[str, Any]]:  
             "suggested_unit": get_length_unit(metric_values),
         },
     ]
+
+    if usable_kwh and usable_kwh > 0:
+        battery_energy_description = ToyotaSensorEntityDescription(
+            key="battery_energy",
+            translation_key="battery_energy",
+            icon="mdi:battery",
+            device_class=None,
+            state_class=SensorStateClass.MEASUREMENT,
+            suggested_display_precision=2,
+            value_fn=lambda vehicle, usable_kwh=usable_kwh: _get_battery_energy_kwh(
+                vehicle, usable_kwh
+            ),
+            attributes_fn=lambda vehicle, usable_kwh=usable_kwh: {
+                "usable_capacity_kwh": usable_kwh,
+                "battery_percent": _get_battery_percent(vehicle),
+            },
+        )
+        sensor_configs.append(
+            {
+                "description": battery_energy_description,
+                "capability_check": lambda v: (
+                    get_vehicle_capability(v, "econnect_vehicle_status_capable")
+                    or v.type == "electric"
+                ),
+                "native_unit": UnitOfEnergy.KILO_WATT_HOUR,
+                "suggested_unit": UnitOfEnergy.KILO_WATT_HOUR,
+            }
+        )
+
+    return sensor_configs
 
 
 class ToyotaSensor(ToyotaBaseEntity, SensorEntity):
@@ -600,6 +747,123 @@ class ToyotaStatisticsSensor(ToyotaBaseEntity, SensorEntity):
         )
 
 
+class ToyotaAwayChargeSensor(RestoreEntity, SensorEntity):
+    """Track energy charged while vehicle is away from home."""
+
+    _attr_translation_key = "charged_not_home"
+    _attr_device_class = SensorDeviceClass.ENERGY
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+    _attr_suggested_display_precision = 2
+
+    def __init__(
+        self,
+        coordinator: DataUpdateCoordinator[list[VehicleData]],
+        entry_id: str,
+        vehicle_index: int,
+        usable_kwh: float,
+    ) -> None:
+        """Initialize the charged-not-home sensor."""
+        super().__init__()
+        self.coordinator = coordinator
+        self.entry_id = entry_id
+        self.index = vehicle_index
+        self.vehicle: Vehicle = coordinator.data[self.index]["data"]
+        self.metric_values: bool = coordinator.data[self.index]["metric_values"]
+        self.statistics: StatisticsData | None = coordinator.data[self.index][
+            "statistics"
+        ]
+
+        self._usable_kwh = usable_kwh
+        self._total = 0.0
+        self._last_kwh: float | None = None
+
+        self._attr_unique_id = f"{entry_id}_{self.vehicle.vin}/charged_not_home"
+        self.entity_description = CHARGED_NOT_HOME_ENTITY_DESCRIPTION
+
+    @property
+    def device_info(self) -> dict[str, Any]:
+        """Return device info linked to the vehicle."""
+        info = getattr(self.vehicle, "_vehicle_info", None)  # noqa: SLF001
+        brand = getattr(info, "brand", None)
+        return {
+            "identifiers": {(DOMAIN, self.vehicle.vin or "Unknown")},
+            "name": getattr(self.vehicle, "alias", None) or self.vehicle.vin,
+            "manufacturer": CONF_BRAND_MAPPING.get(brand) if brand else "Unknown",
+            "model": getattr(info, "car_model_name", None),
+        }
+
+    @property
+    def available(self) -> bool:
+        """Return availability from coordinator health and vehicle slot validity."""
+        if not self.coordinator.last_update_success:
+            return False
+        try:
+            self.coordinator.data[self.index]
+        except (IndexError, TypeError):
+            return False
+        return True
+
+    async def async_added_to_hass(self) -> None:
+        """Restore previous accumulator state and subscribe to coordinator updates."""
+        await super().async_added_to_hass()
+
+        last_state = await self.async_get_last_state()
+        if last_state and last_state.state not in ("unknown", "unavailable"):
+            total = _coerce_float(last_state.state)
+            self._total = total if total is not None else 0.0
+            self._last_kwh = _coerce_float(last_state.attributes.get("last_kwh"))
+
+        remove_listener = self.coordinator.async_add_listener(self._handle_coordinator_update)
+        self.async_on_remove(remove_listener)
+
+        self._handle_coordinator_update()
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Update accumulator when coordinator data changes."""
+        try:
+            vehicle_data = self.coordinator.data[self.index]
+        except (IndexError, TypeError):
+            return
+
+        self.vehicle = vehicle_data["data"]
+        self.metric_values = vehicle_data["metric_values"]
+        self.statistics = vehicle_data["statistics"]
+
+        current_kwh = _get_battery_energy_kwh(self.vehicle, self._usable_kwh)
+        if current_kwh is None:
+            self.async_write_ha_state()
+            return
+
+        if self._last_kwh is None:
+            self._last_kwh = current_kwh
+            self.async_write_ha_state()
+            return
+
+        parking = self.hass.states.get(f"device_tracker.{self.vehicle.vin}_parking_location")
+        if parking is not None and parking.state != "home":
+            delta = current_kwh - self._last_kwh
+            if delta > 0:
+                self._total += delta
+
+        self._last_kwh = current_kwh
+        self.async_write_ha_state()
+
+    @property
+    def native_value(self) -> float:
+        """Return accumulated away-charge energy."""
+        return round(self._total, 2)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return debug attributes for accumulator state."""
+        return {
+            "last_kwh": self._last_kwh,
+            "usable_capacity_kwh": self._usable_kwh,
+        }
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -610,12 +874,20 @@ async def async_setup_entry(
         entry.entry_id
     ]
 
-    sensors: list[ToyotaSensor | ToyotaStatisticsSensor] = []
+    sensors: list[
+        ToyotaSensor
+        | ToyotaStatisticsSensor
+        | ToyotaCoordinatorStateSensor
+        | ToyotaAwayChargeSensor
+    ] = []
     for index, vehicle_data in enumerate(coordinator.data):
         vehicle = vehicle_data["data"]
         metric_values = vehicle_data["metric_values"]
 
-        sensor_configs = create_sensor_configurations(metric_values)
+        usable_kwh = entry.options.get(CONF_EV_USABLE_BATTERY_KWH)
+        usable_kwh_value = _coerce_float(usable_kwh)
+
+        sensor_configs = create_sensor_configurations(metric_values, usable_kwh_value)
 
         sensors.extend(
             ToyotaSensor(
@@ -645,6 +917,19 @@ async def async_setup_entry(
             if config["description"].key.startswith("current_")
             and config["capability_check"](vehicle)
         )
+
+        if usable_kwh_value and usable_kwh_value > 0 and (
+            get_vehicle_capability(vehicle, "econnect_vehicle_status_capable")
+            or vehicle.type == "electric"
+        ):
+            sensors.append(
+                ToyotaAwayChargeSensor(
+                    coordinator=coordinator,
+                    entry_id=entry.entry_id,
+                    vehicle_index=index,
+                    usable_kwh=usable_kwh_value,
+                )
+            )
 
         # Add coordinator-state observability sensors (always on, not
         # gated by CONF_RETAIN_ON_TRANSIENT_FAILURE; they are read-only).
