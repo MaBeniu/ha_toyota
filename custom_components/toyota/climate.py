@@ -161,7 +161,7 @@ class ToyotaClimate(ToyotaBaseEntity, ClimateEntity):
     def _load_defrost_settings(self) -> None:
         """Load defrost settings from climate_settings operations."""
         climate_settings = self.vehicle.climate_settings
-        operations = getattr(climate_settings, "operations", [])
+        operations = getattr(climate_settings, "operations", []) or []
         for operation in filter(lambda o: o.category_name == "defrost", operations):
             for param in operation.parameters:
                 if param.name == "frontDefrost":
@@ -228,7 +228,7 @@ class ToyotaClimate(ToyotaBaseEntity, ClimateEntity):
             ClimateSettingsModel configured with the specified settings
         """
         # Start with existing operations
-        ac_operations = self.vehicle.climate_settings.operations.copy()
+        ac_operations = (self.vehicle.climate_settings.operations or []).copy()
 
         # Find and replace the defrost operation
         for i, operation in enumerate(ac_operations):
